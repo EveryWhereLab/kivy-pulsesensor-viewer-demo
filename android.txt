@@ -1,0 +1,3 @@
+title=Kivy Pulse Sensor Viewer Demo
+author=james.cheng@everywherelab.com
+orientation=landscape
