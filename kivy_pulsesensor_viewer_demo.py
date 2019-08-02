@@ -1,6 +1,6 @@
 '''
 This example uses a Kivy Garden Graph package to draw Arduino pulse sensor data on a PC/phone screen. We use PySerial(PC) or usbserial4a(Android) to receive pulse sensor data from an Arduino board.
-To read more about this demo, visit: https://github.com/EveryWhereLab/kivyPulseSensorViewerDemo/.
+To read more about this demo, visit: https://github.com/EveryWhereLab/kivy-pulsesensor-viewer-demo/.
 '''
 
 import kivy
