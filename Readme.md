@@ -16,7 +16,7 @@ pip3 install usbserial4a
 ## Running demo
 - **Android**
 ```
-You can use Pydroid App to open kivy_pulsesensor_viewer_demo.py and run it.
+You can use Pydroid App to open kivy_pulsesensor_viewer_demo.py and run it. You can add –app to the garden install command. This will create a libs/garden directory in your application directory which will be used by kivy.garden.
 ```
 - **Ubuntu**
 ```
