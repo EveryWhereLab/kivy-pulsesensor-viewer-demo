@@ -181,14 +181,15 @@ class PulseSensorViewerDemo(BoxLayout):
     def scan_usb_devices(self,dt):
         self.ids.device_list.clearAll()
         device_node_list = []
+        r = lambda x: x if x is not None else ''
         if platform == 'android':
             usb_device_list = usb.get_usb_device_list()
             device_node_list = [
-                (device.getDeviceName(), device.getProductName() + "(vid=" + str(device.getVendorId()) + ",pid=" + str(device.getProductId()) + ")" ) for device in usb_device_list
+                (device.getDeviceName(), r(device.getProductName()) + "(vid=" + str(device.getVendorId()) + ",pid=" + str(device.getProductId()) + ")" ) for device in usb_device_list
             ]
         else:
             usb_device_list = list_ports.comports()
-            device_node_list = [(device.device, device.product + "(vid=" + str(device.vid) + ",pid=" + str(device.pid) + ")") for device in usb_device_list]
+            device_node_list = [(device.device, r(device.product) + "(vid=" + str(device.vid) + ",pid=" + str(device.pid) + ")") for device in usb_device_list]
         if len(device_node_list) > 0:
             for device in device_node_list:
                 self.ids.device_list.append_item(device)
