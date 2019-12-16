@@ -89,6 +89,7 @@ class RV(RecycleView):
         self.device_name_list.clear()
         self.selectedItem = -1
         self.view_adapter.views.clear()
+        self.data.clear()
 
 class PulseSensorViewerDemo(BoxLayout):
     def __init__(self):
