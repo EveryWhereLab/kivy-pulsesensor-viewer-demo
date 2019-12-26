@@ -13,6 +13,11 @@ We use usbserial4a(visit: https://github.com/jacklinquan/usbserial4a/ for more i
 ```
 pip3 install usbserial4a
 ```
+- **plyer**
+We use plyer(visit: https://pypi.org/project/plyer/ for more information) library to set screen orientation to landscape mode on various platforms. You can install it with pip:
+```
+pip3 install plyer
+```
 ## Running demo
 - **Android**
 You can use Pydroid App to open kivy_pulsesensor_viewer_demo.py and run it. Since this demo relies on garden packages, you can add --app to the garden install command and then garden packages will be included in a libs/garden directory under your current directory. For example:

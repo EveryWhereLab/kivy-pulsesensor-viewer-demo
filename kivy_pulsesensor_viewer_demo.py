@@ -19,16 +19,20 @@ from kivy.uix.recycleview.views import RecycleDataViewBehavior
 from kivy.uix.behaviors import FocusBehavior
 from kivy.uix.recycleview.layout import LayoutSelectionBehavior
 from kivy.uix.button import Button
+from plyer import orientation
+
 from queue import Queue
 import threading
 import re
+import time
+
 if platform == 'android':
     from usb4a import usb
     from usbserial4a import serial4a
     from usbserial4a import cdcacmserial4a
 else:
     from serial.tools import list_ports
-    from serial import Serial
+    from serial import Serial, SerialException
 from kivy.garden.graph import Graph, MeshLinePlot
 from kivy.uix.popup import Popup
 from kivy.properties import ListProperty, StringProperty, ObjectProperty
@@ -36,7 +40,7 @@ from kivy.properties import ListProperty, StringProperty, ObjectProperty
 class SelectableRecycleBoxLayout(FocusBehavior, LayoutSelectionBehavior,
                                  RecycleBoxLayout):
     ''' Adds selection and focus behaviour to the view. '''
-  
+
 class SelectableLabel(RecycleDataViewBehavior, Label):
     ''' Add selection support to the Label '''
     index = None
@@ -93,6 +97,7 @@ class RV(RecycleView):
 
 class PulseSensorViewerDemo(BoxLayout):
     def __init__(self):
+        orientation.set_landscape()
         self.rx_temp_data = ""
         self.points = [(0,0)]
         self.samples = Queue(300)
@@ -101,6 +106,7 @@ class PulseSensorViewerDemo(BoxLayout):
         self.port_thread_lock = threading.Lock()
         super(PulseSensorViewerDemo, self).__init__()
         self.reading_thread_enabled = False
+        self.is_asking_permission = False
         self.graph = self.ids.graph_plot
         self.plot = []
         self.plot.append(MeshLinePlot(color=[1, 1, 0, 1]))  #  - Yellow
@@ -115,66 +121,72 @@ class PulseSensorViewerDemo(BoxLayout):
         self.counter = 1
 
     def do_start_stop_toggle(self):
-        try:
-            if not self.reading_thread_enabled:
-                # to open the serial port, start a reading thread, and schedule a drawing timer
-                selected_device = self.ids.device_list.get_first_selected_device_name()
-                if selected_device != None:
+        if not self.reading_thread_enabled:
+            # to open the serial port, start a reading thread, and schedule a drawing timer
+            selected_device = self.ids.device_list.get_first_selected_device_name()
+            if selected_device is not None:
+                try:
                     if platform == 'android':
-                         device = usb.get_usb_device(selected_device)
-                         if not device:
-                            raise SerialException(
-                            "Device {} not present!".format(selected_device)
-                            )
-                         if not usb.has_usb_permission(device):
-                            usb.request_usb_permission(device)
+                        device = usb.get_usb_device(selected_device)
+                        if not device:
+                           raise SerialException(
+                           "Device {} not present!".format(selected_device)
+                           )
+                        if not usb.has_usb_permission(device):
+                            if self.is_asking_permission != True:
+                                self.is_asking_permission = True
+                                usb.request_usb_permission(device)
+                            Clock.schedule_once(lambda dt: self.do_start_stop_toggle(),0.5)
                             return
-                         self.serial_port = serial4a.get_serial_port(
-                             selected_device,
-                             9600,
-                             8,
-                             'N',
-                             1,
-                             timeout=1
-                          )
+                        self.is_asking_permission = False
+                        self.serial_port = serial4a.get_serial_port(
+                            selected_device,
+                            App.get_running_app().config.getint('communication', 'baud_rate'),
+                            App.get_running_app().config.getint('communication', 'data_bits'),
+                            App.get_running_app().config.get('communication', 'parity'),
+                            float(App.get_running_app().config.get('communication', 'stop_bits')),
+                            timeout=1
+                        )
                     else:
                         self.serial_port = Serial(
                             selected_device,
-                            9600,
-                            8,
-                            'N',
-                            1,
+                            App.get_running_app().config.getint('communication', 'baud_rate'),
+                            App.get_running_app().config.getint('communication', 'data_bits'),
+                            App.get_running_app().config.get('communication', 'parity'),
+                            float(App.get_running_app().config.get('communication', 'stop_bits')),
                             timeout=1
                         )
-                    if self.serial_port.is_open and not self.read_thread:
-                        self.serial_port.reset_input_buffer()
-                        self.read_thread = threading.Thread(target = self.read_serial_msg_thread)
-                        self.reading_thread_enabled = True
-                        self.read_thread.start()
-                        # Since there is a queue to adjust inconsistent throughputs, we can set a small time interval to check if sampes exist in queue .
-                        Clock.schedule_interval(self.draw_waveform, 1 / 50.)
-                        self.ids.toggle_button.text = "Stop acquisition"
-                else:
-                    # create content and add to the popup
-                    content = Button(text='No device selected. Close me!')
-                    popup = Popup(title='Reminder', content=content, auto_dismiss=False)
-                    # bind the on_press event of the button to the dismiss function
-                    content.bind(on_press=popup.dismiss)
-                    # open the popup
-                    popup.open()
+                except SerialException:
+                    self.popup_a_notification("The selected device can not be configured.\r\nPlease check the permissions and close me!")
+                if self.serial_port is not None and self.serial_port.is_open and not self.read_thread:
+                    self.serial_port.reset_input_buffer()
+                    self.read_thread = threading.Thread(target = self.read_serial_msg_thread)
+                    self.reading_thread_enabled = True
+                    self.read_thread.start()
+                    # Since there is a queue to adjust inconsistent throughputs, we can set a small time interval to check if sampes exist in queue .
+                    Clock.schedule_interval(self.draw_waveform, 1 / 50.)
+                    self.ids.toggle_button.text = "Stop acquisition"
             else:
-                # to unschedule the drawing timer and stop the reading thread
-                self.reset_plots()
-                Clock.unschedule(self.draw_waveform)
-                self.reading_thread_enabled = False
-                with self.port_thread_lock:
-                    self.serial_port.close()
-                self.read_thread.join()
-                self.read_thread = None
-                self.ids.toggle_button.text = "Start acquisition"
-        except NotImplementedError:
-            popup = ErrorPopup()
-            popup.open()
+                self.popup_a_notification("No device selected. Close me!")
+        else:
+            # to unschedule the drawing timer and stop the reading thread
+            self.reset_plots()
+            Clock.unschedule(self.draw_waveform)
+            self.reading_thread_enabled = False
+            with self.port_thread_lock:
+                self.serial_port.close()
+            self.read_thread.join()
+            self.read_thread = None
+            self.ids.toggle_button.text = "Start acquisition"
+
+    def popup_a_notification(self, msg):
+        # create content and add to the popup
+        content = Button(text=msg)
+        popup = Popup(title='Reminder', content=content, auto_dismiss=False)
+        # bind the on_press event of the button to the dismiss function
+        content.bind(on_press=popup.dismiss)
+        # open the popup
+        popup.open()
 
     def do_schedule_scan_once(self):
         Clock.schedule_once(self.scan_usb_devices,1/10)
@@ -195,16 +207,16 @@ class PulseSensorViewerDemo(BoxLayout):
             for device in device_node_list:
                 self.ids.device_list.append_item(device)
             Clock.schedule_once(self.set_first_item_as_default,1/10)
-                
+
     def set_first_item_as_default(self, dt):
         self.ids.device_list.set_first_item_as_default()
 
-    def draw_waveform(self,dt): 
+    def draw_waveform(self,dt):
         update_size = self.samples.qsize()
         if update_size == 0:
             return
         if update_size > 200:
-            # Just show latest samples. 
+            # Just show latest samples.
             while(self.samples.qsize() > 200):
                 self.samples.get()
             self.plot[0].points.clear()
@@ -227,7 +239,7 @@ class PulseSensorViewerDemo(BoxLayout):
         self.plot[0].points.extend(points)
         self.counter += update_size
                        
-    def get_lines(self, data):   
+    def get_lines(self, data):
         lines = []
         self.rx_temp_data += data.decode("ascii")
         idx = self.rx_temp_data.rfind('\r\n')
@@ -238,7 +250,7 @@ class PulseSensorViewerDemo(BoxLayout):
             else:
                 self.rx_temp_data = self.rx_temp_data[idx + 2:]
         return lines
-               
+
     def read_serial_msg_thread(self):
         while self.reading_thread_enabled == True:
             try:
@@ -269,21 +281,65 @@ class PulseSensorViewerDemo(BoxLayout):
                             result = re.findall(r"[-+]?\d*\.\d+|\d+", line[1:])
                             if len(result) > 0:
                                 self.ids.Temperature_data.text = "Temperature=" + result[0]
+                else:
+                    time.sleep(0.01)
             except Exception as ex:
                 raise ex
+
+usb_serial_params_json = '''
+[
+    {
+        "type": "options",
+        "title": "Baud rate",
+        "section": "communication",
+        "key": "baud_rate",
+         "options": ["921600","460800","230400", "115200","57600","38400","19200","9600"]
+    },
+    {
+        "type": "options",
+        "title": "Data bits",
+        "section": "communication",
+        "key": "data_bits",
+         "options": ["8","7","6","5"]
+    },
+    {
+        "type": "options",
+        "title": "Parity",
+        "section": "communication",
+        "key": "parity",
+         "options": ["N","E","O"]
+    },
+    {
+        "type": "options",
+        "title": "Stop bits",
+        "section": "communication",
+        "key": "stop_bits",
+         "options": ["1","1.5","2"]
+    }
+]
+'''
 
 class PulseSensorViewerDemoApp(App):
     def build(self):
         return PulseSensorViewerDemo()
+
+    def build_config(self, config):
+        """
+        Set the default values for the configs sections.
+        """
+        config.setdefaults('communication', {'baud_rate' : 115200, 'data_bits' : 8, 'parity': 'N', 'stop_bits' : 1 })
+
+    def build_settings(self, settings):
+        """
+        Add our custom section to the default configuration object.
+        """
+        settings.add_json_panel('USB serial parameters', self.config, data=usb_serial_params_json)
 
     def on_pause(self):
         return True
 
     def on_stop(self):
         self.root.reading_thread_enabled = False
-   
-class ErrorPopup(Popup):
-    pass
 
 if __name__ == '__main__':
     PulseSensorViewerDemoApp().run()

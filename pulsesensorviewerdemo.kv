@@ -1,4 +1,5 @@
 #:kivy 1.8.0
+
 <SelectableLabel>:
     # Draw a background to indicate selection
     canvas.before:
@@ -7,6 +8,7 @@
         Rectangle:
             pos: self.pos
             size: self.size
+
 <RV>:
     viewclass: 'SelectableLabel'
     SelectableRecycleBoxLayout:
@@ -28,14 +30,23 @@
             size_hint_y: 13
             RV:
                 id: device_list
+                size_hint_x: 0.5
             Button:
                 id: refresh_button
+                size_hint_x: 0.21
                 text: 'Refresh devices'
                 on_press: root.do_schedule_scan_once()
             Button:
                 id: toggle_button
+                size_hint_x: 0.21
                 text: 'Start acquisition'
                 on_press: root.do_start_stop_toggle()
+            Button:
+                id: setting_button
+                size_hint_x: 0.08
+                background_normal: 'ic_settings_applications_grey600_18dp.png'
+                background_down: 'ic_settings_applications_grey600_18dp.png'
+                on_press: app.open_settings()
         Graph:
             size_hint_y: 60
             id: graph_plot
@@ -60,20 +71,3 @@
             id: Temperature_data
             text: ""
             size_hint_y: 9
-
-<ErrorPopup>:
-    size_hint: .7, .4
-    title: "Error"
-    
-    BoxLayout:
-        orientation: 'vertical'
-        padding: 10
-        spacing: 20
-        Label:
-            size_hint_y: 0.4
-            text: "This feature has not yet been implemented on this platform."
-        Button:
-            text: 'Dismiss'
-            size_hint_y: 0.4
-            on_press: root.dismiss()
-            
